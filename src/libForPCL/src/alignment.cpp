@@ -46,7 +46,7 @@ void AlignCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr& target_in,std::vector<Featu
 }
 
 //second step: evaluate the alignments and extract the neighbours of the models if it is a good alignment.
-int ExtractAlignedModel(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,pcl::PointCloud<pcl::PointXYZ>::Ptr& model_in,TemplateAlignment::Result& best_alignment,float r,float voxel_size_in)
+int ExtractAlignedModel(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,pcl::PointCloud<pcl::PointXYZ>::Ptr& model_in,TemplateAlignment::Result& best_alignment,float voxel_size_in)
 {
   pcl::console::TicToc tt;
   std::cerr << "Extracting...\n", tt.tic ();
@@ -72,24 +72,15 @@ int ExtractAlignedModel(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,pcl::PointClo
   std::vector<int>::iterator new_end=unique(indices.begin(),indices.end());
   indices.erase(new_end,indices.end());
 
-//  pcl::PointCloud<pcl::PointXYZ>::Ptr target (new pcl::PointCloud<pcl::PointXYZ>);
   pcl::PointIndices::Ptr inliers (new pcl::PointIndices());
   inliers->indices=indices;
-//  ExtractCloud(cloud,inliers,target,false);
   ExtractCloud(cloud,inliers,cloud,true);
-//  if(EvaluateTarget(target,model,best_alignment,r)==1)
-//  {
-    std::cerr << ">> Done: " << tt.toc () << " ms\n";
-
-    return 1;
-//  }
-//  else
-//  {
-//    return 0;
-//  }
+  std::cerr << ">> Done: " << tt.toc () << " ms\n";
+  return 1;
 }
 
-
+//evaluate alignment
+/*
 int EvaluateTarget(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,pcl::PointCloud<pcl::PointXYZ>::Ptr& model_in,TemplateAlignment::Result& best_alignment,float radius)
 {
   pcl::console::TicToc tt;
@@ -175,6 +166,8 @@ int EvaluateTarget(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,pcl::PointCloud<pc
     return 0;  // normal of the circle unsatisfied
   }
 }
+*/
+
 
 
 //entire procedure:
@@ -185,8 +178,8 @@ int AlignAllModels(pcl::PointCloud<pcl::PointXYZ>::Ptr& target_in,std::vector<Fe
   std::cerr << "Aligning ALL...\n", tt.tic ();
 
   int j = 0;
-  int i = 0;
-  float fit_score = 0;
+  float fit_score = 0.0f;
+  float icp_score = 0.0f;
   int best_index=-1;
   TemplateAlignment::Result best_alignment;
   pcl::PCDWriter writer;
@@ -208,6 +201,8 @@ int AlignAllModels(pcl::PointCloud<pcl::PointXYZ>::Ptr& target_in,std::vector<Fe
       pcl::PointCloud<pcl::PointXYZ>::Ptr icp_cloud (new pcl::PointCloud<pcl::PointXYZ> ());
       pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
       ICPCloud(transformed_cloud,target_in,icp_cloud,icp);
+      icp_score = icp.getFitnessScore();
+      std::cout << "icp_score = " << icp_score << std::endl;
 
       //WriteCloud(icp_cloud,"icpCloud.pcd");
       std::stringstream ss1;
@@ -215,9 +210,8 @@ int AlignAllModels(pcl::PointCloud<pcl::PointXYZ>::Ptr& target_in,std::vector<Fe
       writer.write<pcl::PointXYZ> (ss1.str (), *icp_cloud, false);
 
       //pcl::io::savePCDFileBinary ("output.pcd", *transformed_cloud);
-      float radius;
-      getRadius(*best_template.getPointCloud (),radius);
-      if(ExtractAlignedModel(target_in,icp_cloud,best_alignment,radius,0.01f)==1)
+      ExtractAlignedModel(target_in,icp_cloud,best_alignment,0.01f);
+      if(icp_score < fit_score && icp_score < 0.000010)
       {
         Eigen::Vector3f translation = best_alignment.final_transformation.block<3,1>(0, 3);
         PlateInformation oneInfor;
@@ -228,29 +222,25 @@ int AlignAllModels(pcl::PointCloud<pcl::PointXYZ>::Ptr& target_in,std::vector<Fe
         getRadius(*best_template.getPointCloud (),oneInfor.radius);
         infor.push_back(oneInfor);
 
-        i=0;
         std::stringstream ss;
         ss << "model_aligned_" << j << ".pcd";
         writer.write<pcl::PointXYZ> (ss.str (), *transformed_cloud, false); //*
         printf ("t = < %0.3f, %0.3f, %0.3f >\n", translation (0), translation (1), translation (2));
         std::cout<<"find a plate "<<std::endl;
         j++;
+
+
+        std::cout << "--------------------" << std::endl;
+        std::cout << fit_score << std::endl;
+        std::cout << icp_score << std::endl;        
       }
       else
       {
-        i++;
-        std::cout<<"find a plane"<<std::endl;
+        std::cout<<"find a invalid target"<<std::endl;
       }
-
-    }
-    if(i>0)           //----------------------------------------------------------------找到平面后的匹配次数
-    {
-      std::cout<<"find plane 1 time and out" << std::endl;
-      std::cerr << ">> Done: " << tt.toc () << " ms\n";
-      return j;
     }
   }
-  std::cout<<"didn't find any target and out"<<std::endl;
+  std::cout<< j << " plates have been found"<<std::endl;
   std::cerr << ">> Done: " << tt.toc () << " ms\n";
   return j;
 }
@@ -260,7 +250,7 @@ void
 ICPCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr target_in,pcl::PointCloud<pcl::PointXYZ>::Ptr model_in,pcl::PointCloud<pcl::PointXYZ>::Ptr& target_out,pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ>& icp)
 {
   pcl::console::TicToc tt;
-  std::cerr << "Aligning ALL...\n", tt.tic ();
+  std::cerr << "ICP...\n", tt.tic ();
   icp.setInputSource(target_in);
   icp.setInputTarget(model_in);
   icp.setMaximumIterations(50);

@@ -30,8 +30,9 @@ class FeatureCloud
     FeatureCloud () :
       search_method_xyz_ (new SearchMethod),
       normal_k_(30),
-      normal_radius_ (0.02f),
-      feature_radius_ (0.018f)
+      feature_k_(35)
+      //normal_radius_ (0.02f),
+      //feature_radius_ (0.018f)
     {}
 
     ~FeatureCloud () {}
@@ -107,7 +108,8 @@ class FeatureCloud
       fpfh_est.setInputCloud (xyz_);
       fpfh_est.setInputNormals (normals_);
       fpfh_est.setSearchMethod (search_method_xyz_);
-      fpfh_est.setRadiusSearch (feature_radius_);
+      fpfh_est.setKSearch(feature_k_);
+      //fpfh_est.setRadiusSearch (feature_radius_);
       fpfh_est.compute (*features_);
     }
 
@@ -120,6 +122,7 @@ class FeatureCloud
 
     // Parameters
     int normal_k_;
+    int feature_k_;
     float normal_radius_;
     float feature_radius_;
 };
@@ -139,7 +142,7 @@ class TemplateAlignment
       min_sample_distance_ (0.08f),//0.05
       max_correspondence_distance_ (0.01f*0.01f),
       //max_correspondence_distance_(0.001f),
-      nr_iterations_ (400)
+      nr_iterations_ (175)
     {
       // Initialize the parameters in the Sample Consensus Initial Alignment (SAC-IA) algorithm
       sac_ia_.setMinSampleDistance (min_sample_distance_);

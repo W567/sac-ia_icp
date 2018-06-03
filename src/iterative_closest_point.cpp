@@ -40,14 +40,14 @@ main (int argc, char **argv)
   std::cerr << "Preparing...\n", tt.tic ();
   const float depth_limit = 0.4;
   PrePassThrough(cloud,cloud,0,depth_limit);
-  ShowCloud(cloud);
+  //ShowCloud(cloud);
 
   // ... and downsampling the point cloud
   const float voxel_grid_size = 0.003;//0.0026  //0.003
   //vox_grid.filter (*cloud); // Please see this http://www.pcl-developers.org/Possible-problem-in-new-VoxelGrid-implementation-from-PCL-1-5-0-td5490361.html
   pcl::PointCloud<pcl::PointXYZ>::Ptr tempCloud (new pcl::PointCloud<pcl::PointXYZ>);
   DownSampleCloud(cloud,tempCloud,voxel_grid_size);
-  ShowCloud(cloud);
+  //ShowCloud(cloud);
 
   // Remove Outliers from the point cloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_sor_voxel (new pcl::PointCloud<pcl::PointXYZ>);
@@ -65,11 +65,11 @@ main (int argc, char **argv)
   RemoveOutlier(cloud_nobase,cloud,50,2);
   //ShowCloud(cloud);
   std::cerr << ">> Done: " << tt.toc () << " ms\n";
-  ShowCloud(cloud);
+  //ShowCloud(cloud);
 
   int alig_model_count=0;
   std::vector<PlateInformation> infor;
-  alig_model_count=AlignAllModels(cloud,object_templates,0.000030,infor);
+  alig_model_count=AlignAllModels(cloud,object_templates,0.000040,infor);
 
   std::cout<<"the count of models that have been aligned: " << alig_model_count << std::endl;
   std::cout<<"plate information:" << std::endl;
