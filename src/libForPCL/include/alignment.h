@@ -29,10 +29,10 @@ class FeatureCloud
 
     FeatureCloud () :
       search_method_xyz_ (new SearchMethod),
-      normal_k_(30),
-      feature_k_(35)
-      //normal_radius_ (0.02f),
-      //feature_radius_ (0.018f)
+      normal_k_(30), //30
+      feature_k_(35),  //35
+      normal_radius_ (0.02f),
+      feature_radius_ (0.018f)
     {}
 
     ~FeatureCloud () {}
@@ -146,10 +146,10 @@ class TemplateAlignment
     };
 
     TemplateAlignment () :
-      min_sample_distance_ (0.08f),//0.05
+      min_sample_distance_ (0.07f),//0.05
       max_correspondence_distance_ (0.01f*0.01f),
       //max_correspondence_distance_(0.001f),
-      nr_iterations_ (175)
+      nr_iterations_ (175) //175
     {
       // Initialize the parameters in the Sample Consensus Initial Alignment (SAC-IA) algorithm
       sac_ia_.setMinSampleDistance (min_sample_distance_);
@@ -158,6 +158,8 @@ class TemplateAlignment
     }
 
     ~TemplateAlignment () {}
+
+
 
     // Set the given cloud as the target to which the templates will be aligned
     void
@@ -192,7 +194,7 @@ class TemplateAlignment
 
       std::cout << "sac-ia score: " << result.fitness_score << std::endl;
 
-      if(result.fitness_score < 0.000030)
+      if(result.fitness_score < 0.000040)
       {
         pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZ> ());
         pcl::transformPointCloud (*template_cloud.getPointCloud (), *transformed_cloud, result.sac_ia_transformation);
@@ -277,6 +279,7 @@ struct PlateInformation
   float y;
   float z;
   float radius;
+  int food;
 };
 
 
@@ -287,5 +290,6 @@ void AlignCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr& target_in,std::vector<Featu
 int AlignAllModels(pcl::PointCloud<pcl::PointXYZ>::Ptr& target_in,std::vector<FeatureCloud>& templates_in,float fit_threshold,std::vector<PlateInformation>& infor);
 int ExtractAlignedModel(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,pcl::PointCloud<pcl::PointXYZ>::Ptr& model_in,TemplateAlignment::Result& best_alignment,float r,float voxel_size_in);
 int EvaluateTarget(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,pcl::PointCloud<pcl::PointXYZ>::Ptr& model_in,TemplateAlignment::Result& best_alignment,float radius);
+void checkFood(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in,PlateInformation& infor);
 
 #endif

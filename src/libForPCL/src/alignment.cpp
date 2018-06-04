@@ -94,7 +94,7 @@ int AlignAllModels(pcl::PointCloud<pcl::PointXYZ>::Ptr& target_in,std::vector<Fe
   pcl::PCDWriter writer;
   infor.clear();
 
-  while(fit_score <= fit_threshold || try_times < 2)
+  while(fit_score <= fit_threshold || try_times < 1)
   {
     // Assign to the target FeatureCloud
     std::cout<<"--------------------------------aligncloud-----------------------------------"<<std::endl;
@@ -133,8 +133,10 @@ int AlignAllModels(pcl::PointCloud<pcl::PointXYZ>::Ptr& target_in,std::vector<Fe
       oneInfor.x=translation[0];
       oneInfor.y=translation[1];
       oneInfor.z=translation[2];
-
+      oneInfor.food = 0;
       getRadius(*best_template.getPointCloud (),oneInfor.radius);
+      checkFood(target_in,oneInfor);
+
       infor.push_back(oneInfor);
 
       std::stringstream ss;
@@ -174,4 +176,27 @@ ICPCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr target_in,pcl::PointCloud<pcl::Poin
   std::cout << "has converged:" << icp.hasConverged() << " score: " << icp.getFitnessScore() << std::endl;
   std::cout << icp.getFinalTransformation() << std::endl;
   std::cerr << ">> Done: " << tt.toc () << " ms\n";
+}
+
+
+
+void
+checkFood(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in,PlateInformation& infor)
+{
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+  PrePassThrough(cloud_in,cloud,infor.x-infor.radius,infor.x+infor.radius,"x");
+  PrePassThrough(cloud,cloud,infor.y-infor.radius,infor.y+infor.radius,"y");
+  PrePassThrough(cloud,cloud,0,infor.z,"z");
+  ShowCloud(cloud);
+
+  int num;
+  num = ExtractClusters(cloud,0.005,10000,100);
+  if(num > 0)
+  {
+    infor.food = 1;
+  }
+  else
+  {
+    infor.food = 0;
+  }
 }

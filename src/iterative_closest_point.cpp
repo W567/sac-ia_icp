@@ -40,14 +40,14 @@ main (int argc, char **argv)
   std::cerr << "Preparing...\n", tt.tic ();
   const float depth_limit = 0.4;
   PrePassThrough(cloud,cloud,0,depth_limit);
-  ShowCloud(cloud);
+  //ShowCloud(cloud);
 
   // ... and downsampling the point cloud
   const float voxel_grid_size = 0.003;//0.0026  //0.003
   //vox_grid.filter (*cloud); // Please see this http://www.pcl-developers.org/Possible-problem-in-new-VoxelGrid-implementation-from-PCL-1-5-0-td5490361.html
   pcl::PointCloud<pcl::PointXYZ>::Ptr tempCloud (new pcl::PointCloud<pcl::PointXYZ>);
   DownSampleCloud(cloud,tempCloud,voxel_grid_size);
-  ShowCloud(cloud);
+  //ShowCloud(cloud);
 
   // Remove Outliers from the point cloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_sor_voxel (new pcl::PointCloud<pcl::PointXYZ>);
@@ -62,7 +62,7 @@ main (int argc, char **argv)
   SegmentPlane(cloud_sor_voxel,normal,coefficients_plane,inliers_plane,0.01);
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_nobase (new pcl::PointCloud<pcl::PointXYZ>);
   ExtractCloud(cloud_sor_voxel,inliers_plane,cloud_nobase,true);
-  RemoveOutlier(cloud_nobase,cloud,50,2);
+  RemoveOutlier(cloud_nobase,cloud,50,0.2);
   //ShowCloud(cloud);
   std::cerr << ">> Done: " << tt.toc () << " ms\n";
   ShowCloud(cloud);
@@ -76,11 +76,12 @@ main (int argc, char **argv)
   for(int i=0;i<alig_model_count;i++)
   {
     std::cout << " " <<std::endl;
-    std::cout << "plate NO." << i << std::endl;
+    std::cout << "plate NO." << i+1 << std::endl;
     std::cout<<"x: "<< 100 * infor[i].x << " cm " << std::endl;
     std::cout<<"y: "<< 100 * infor[i].y << " cm " << std::endl;
     std::cout<<"z: "<< 100 * infor[i].z << " cm " << std::endl;
     std::cout<<"r: "<< 100 * infor[i].radius << " cm " << std::endl;
+    std::cout<<"food: " << infor[i].food << std::endl;
   }
 
   pcl::io::savePCDFileBinary ("sence_after_extract.pcd", *cloud);
