@@ -127,6 +127,10 @@ class FeatureCloud
     float feature_radius_;
 };
 
+
+
+void ICPCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr target_in,pcl::PointCloud<pcl::PointXYZ>::Ptr model_in,pcl::PointCloud<pcl::PointXYZ>::Ptr& target_out,pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ>& icp);
+
 class TemplateAlignment
 {
   public:
@@ -134,6 +138,9 @@ class TemplateAlignment
     struct Result
     {
       float fitness_score;
+      float icp_score;
+      Eigen::Matrix4f sac_ia_transformation;
+      Eigen::Matrix4f icp_transformation;
       Eigen::Matrix4f final_transformation;
       EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     };
@@ -172,6 +179,8 @@ class TemplateAlignment
     void
     align (FeatureCloud &template_cloud, TemplateAlignment::Result &result)
     {
+      std::cout << " " << std::endl;
+      std::cout << "------try one model from the templates to align with the target-----------" << std::endl;
       sac_ia_.setInputCloud (template_cloud.getPointCloud ());
       sac_ia_.setSourceFeatures (template_cloud.getLocalFeatures ());
 
@@ -179,7 +188,37 @@ class TemplateAlignment
       sac_ia_.align (registration_output);
 
       result.fitness_score = (float) sac_ia_.getFitnessScore (max_correspondence_distance_);
-      result.final_transformation = sac_ia_.getFinalTransformation ();
+      result.sac_ia_transformation = sac_ia_.getFinalTransformation ();
+
+      std::cout << "sac-ia score: " << result.fitness_score << std::endl;
+
+      if(result.fitness_score < 0.000030)
+      {
+        pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZ> ());
+        pcl::transformPointCloud (*template_cloud.getPointCloud (), *transformed_cloud, result.sac_ia_transformation);
+
+        pcl::PointCloud<pcl::PointXYZ>::Ptr icp_cloud (new pcl::PointCloud<pcl::PointXYZ> ());
+        ICPCloud(transformed_cloud,target_.getPointCloud(),icp_cloud,icp_);
+        result.icp_score = icp_.getFitnessScore();
+        result.icp_transformation = icp_.getFinalTransformation();
+        result.final_transformation =  result.icp_transformation * result.sac_ia_transformation ;
+      }
+      else
+      {
+        result.icp_score = 1;
+        result.final_transformation = result.sac_ia_transformation;
+      }
+/*
+      std::cout << "icp_score = " << result.icp_score << std::endl;
+//      WriteCloud(icp_cloud,"icp_cloud.pcd");
+     std::cout << " " << std::endl;
+     std::cout << sac_ia_.getFinalTransformation() << std::endl;
+     std::cout << " " << std::endl;
+     std::cout << icp_.getFinalTransformation() << std::endl;
+     std::cout << " " << std::endl;
+     std::cout << result.final_transformation << std::endl;
+*/
+      std::cout << "--------align one finished-------------" << std::endl;
     }
 
     // Align all of template clouds set by addTemplateCloud to the target specified by setTargetCloud ()
@@ -207,9 +246,9 @@ class TemplateAlignment
       for (size_t i = 0; i < results.size (); ++i)
       {
         const Result &r = results[i];
-        if (r.fitness_score < lowest_score)
+        if (r.icp_score < lowest_score)
         {
-          lowest_score = r.fitness_score;
+          lowest_score = r.icp_score;
           best_template = (int) i;
         }
       }
@@ -226,6 +265,7 @@ class TemplateAlignment
 
     // The Sample Consensus Initial Alignment (SAC-IA) registration routine and its parameters
     pcl::SampleConsensusInitialAlignment<pcl::PointXYZ, pcl::PointXYZ, pcl::FPFHSignature33> sac_ia_;
+    pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp_;
     float min_sample_distance_;
     float max_correspondence_distance_;
     int nr_iterations_;
@@ -247,6 +287,5 @@ void AlignCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr& target_in,std::vector<Featu
 int AlignAllModels(pcl::PointCloud<pcl::PointXYZ>::Ptr& target_in,std::vector<FeatureCloud>& templates_in,float fit_threshold,std::vector<PlateInformation>& infor);
 int ExtractAlignedModel(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,pcl::PointCloud<pcl::PointXYZ>::Ptr& model_in,TemplateAlignment::Result& best_alignment,float r,float voxel_size_in);
 int EvaluateTarget(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,pcl::PointCloud<pcl::PointXYZ>::Ptr& model_in,TemplateAlignment::Result& best_alignment,float radius);
-void ICPCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr target_in,pcl::PointCloud<pcl::PointXYZ>::Ptr model_in,pcl::PointCloud<pcl::PointXYZ>::Ptr& target_out,pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ>& icp);
 
 #endif

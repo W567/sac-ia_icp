@@ -40,9 +40,8 @@ void AlignCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr& target_in,std::vector<Featu
   best_index = template_align.findBestAlignment (best_alignment);
 
   // Print the alignment fitness score (values less than 0.00002 are good)
-  printf ("Best fitness score: %f\n", best_alignment.fitness_score);
+  printf ("Best fitness score: %f\n", best_alignment.icp_score);
   std::cerr << ">> Done: " << tt.toc () << " ms\n";
-
 }
 
 //second step: evaluate the alignments and extract the neighbours of the models if it is a good alignment.
@@ -79,125 +78,44 @@ int ExtractAlignedModel(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,pcl::PointClo
   return 1;
 }
 
-//evaluate alignment
-/*
-int EvaluateTarget(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,pcl::PointCloud<pcl::PointXYZ>::Ptr& model_in,TemplateAlignment::Result& best_alignment,float radius)
-{
-  pcl::console::TicToc tt;
-  std::cerr << "Evaluating...\n", tt.tic ();
-
-  Eigen::Matrix4f transform_back= best_alignment.final_transformation.inverse();
-
-  pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_target (new pcl::PointCloud<pcl::PointXYZ>);
-  pcl::transformPointCloud(*cloud,*transformed_target,transform_back);
-
-  pcl::PointCloud<pcl::Normal>::Ptr normal(new pcl::PointCloud<pcl::Normal>);
-  EstimateNormal(transformed_target,normal);
-  pcl::ModelCoefficients::Ptr coefficients_plane(new pcl::ModelCoefficients);
-  pcl::PointIndices::Ptr inliers_plane(new pcl::PointIndices);
-  SegmentPlane(transformed_target,normal,coefficients_plane,inliers_plane,0.01);
-
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_plane_extracted (new pcl::PointCloud<pcl::PointXYZ>);
-  ExtractCloud(transformed_target,inliers_plane,cloud_plane_extracted,true);
-
-  // Remove statistical outliers
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_sor_plane (new pcl::PointCloud<pcl::PointXYZ>);
-  RemoveOutlier(cloud_plane_extracted,cloud_sor_plane);
-
-  // Estimate point normals
-//  pcl::PointCloud<pcl::Normal>::Ptr cloud_normals_plane (new pcl::PointCloud<pcl::Normal>);
-  if(cloud_sor_plane->points.size()<100)
-  {
-    std::cout << "points after plane extracting are not enough for circle segmentation" << std::endl;
-    std::cerr << ">> Done: " << tt.toc () << " ms\n";
-    return 0;
-  }
-  EstimateNormal(cloud_sor_plane,normal);
-
-  // Create the segmentation object for circle segmentation and set all the parameters
-  pcl::ModelCoefficients::Ptr coefficients_circle (new pcl::ModelCoefficients);
-  pcl::PointIndices::Ptr inliers_circle (new pcl::PointIndices);
-  SegmentCircle3D(cloud_sor_plane,normal,coefficients_circle,inliers_circle,0.8*radius,1.2*radius,0.01);
-
-  float cir_x = coefficients_circle->values[0];
-  float cir_y = coefficients_circle->values[1];
-  float cir_na = coefficients_circle->values[4];
-  float cir_nb = coefficients_circle->values[5];
-  float cir_nc = coefficients_circle->values[6];
-
-  //ShowCloud(cloud_sor_plane);
-  // Extract the circle out of cloud
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_circle (new pcl::PointCloud<pcl::PointXYZ>);
-  ExtractCloud(cloud_sor_plane,inliers_circle,cloud_circle);
-  //ShowCloud(cloud_circle);
-
-  std::cout << "size of circle: " << cloud_circle->points.size() << std::endl ;
-  std::cout << "size of cloud with plane extracted : " << cloud_sor_plane->points.size() << std::endl;
-
-  if( fabs(cir_na) < 0.1 && fabs(cir_nb) < 0.1 && fabs(cir_nc) > 0.9)
-  {
-    std::cout << "error is : " << cir_x*cir_x + cir_y*cir_y << std::endl;
-    if( (cir_x*cir_x + cir_y*cir_y) <0.0001 )
-    {
-      if( cloud_circle->points.size() > 0.5 * cloud_sor_plane->points.size() )
-      {
-        std::cout << "valid target" << std::endl;
-        std::cerr << ">> Done: " << tt.toc () << " ms\n";
-        return 1; //valid target
-      }
-      else
-      {
-        std::cout << "quantity unsatisfied" << std::endl;
-        std::cerr << ">> Done: " << tt.toc () << " ms\n";
-        return 0;  //quantity unsatisfied
-      }
-    }
-    else
-    {
-      std::cout << "centroid unsatisfied" << std::endl;
-      std::cerr << ">> Done: " << tt.toc () << " ms\n";
-      return 0;
-    }
-  }
-  else
-  {
-    std::cout << "normal unsatisfied" << std::endl;
-    std::cerr << ">> Done: " << tt.toc () << " ms\n";
-    return 0;  // normal of the circle unsatisfied
-  }
-}
-*/
-
-
-
 //entire procedure:
 //
 int AlignAllModels(pcl::PointCloud<pcl::PointXYZ>::Ptr& target_in,std::vector<FeatureCloud>& templates_in,float fit_threshold,std::vector<PlateInformation>& infor)
 {
   pcl::console::TicToc tt;
   std::cerr << "Aligning ALL...\n", tt.tic ();
-
+  int k = 0;
   int j = 0;
+  int try_times = 0;
   float fit_score = 0.0f;
-  float icp_score = 0.0f;
+//  float icp_score = 0.0f;
   int best_index=-1;
   TemplateAlignment::Result best_alignment;
   pcl::PCDWriter writer;
   infor.clear();
 
-  while(fit_score <= fit_threshold)
+  while(fit_score <= fit_threshold || try_times < 2)
   {
     // Assign to the target FeatureCloud
     std::cout<<"--------------------------------aligncloud-----------------------------------"<<std::endl;
     AlignCloud(target_in,templates_in,best_index,best_alignment);
-    fit_score = best_alignment.fitness_score;
+    fit_score = best_alignment.icp_score;
+
+    const FeatureCloud &best_template = templates_in[best_index];
+    pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZ> ());
+    pcl::transformPointCloud (*best_template.getPointCloud (), *transformed_cloud, best_alignment.final_transformation);
+    ExtractAlignedModel(target_in,transformed_cloud,best_alignment,0.01f);
+
+    std::stringstream ss;
+    ss << "icp" << k << ".pcd";
+    writer.write<pcl::PointXYZ> (ss.str (), *transformed_cloud, false); //*
+    k++;
+
+
     if(fit_score <= fit_threshold)
     {
-      const FeatureCloud &best_template = templates_in[best_index];
-
-      pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZ> ());
-      pcl::transformPointCloud (*best_template.getPointCloud (), *transformed_cloud, best_alignment.final_transformation);
-
+      try_times = 0;
+/*
       pcl::PointCloud<pcl::PointXYZ>::Ptr icp_cloud (new pcl::PointCloud<pcl::PointXYZ> ());
       pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
       ICPCloud(transformed_cloud,target_in,icp_cloud,icp);
@@ -208,36 +126,32 @@ int AlignAllModels(pcl::PointCloud<pcl::PointXYZ>::Ptr& target_in,std::vector<Fe
       std::stringstream ss1;
       ss1 << "icp_" << j << ".pcd";
       writer.write<pcl::PointXYZ> (ss1.str (), *icp_cloud, false);
+*/
+//      ExtractAlignedModel(target_in,transformed_cloud,best_alignment,0.01f);
+      Eigen::Vector3f translation = best_alignment.final_transformation.block<3,1>(0, 3);
+      PlateInformation oneInfor;
+      oneInfor.x=translation[0];
+      oneInfor.y=translation[1];
+      oneInfor.z=translation[2];
 
-      //pcl::io::savePCDFileBinary ("output.pcd", *transformed_cloud);
-      ExtractAlignedModel(target_in,icp_cloud,best_alignment,0.01f);
-      if(icp_score < fit_score && icp_score < 0.000010)
-      {
-        Eigen::Vector3f translation = best_alignment.final_transformation.block<3,1>(0, 3);
-        PlateInformation oneInfor;
-        oneInfor.x=translation[0];
-        oneInfor.y=translation[1];
-        oneInfor.z=translation[2];
+      getRadius(*best_template.getPointCloud (),oneInfor.radius);
+      infor.push_back(oneInfor);
 
-        getRadius(*best_template.getPointCloud (),oneInfor.radius);
-        infor.push_back(oneInfor);
+      std::stringstream ss;
+      ss << "model_aligned_" << j << ".pcd";
+      writer.write<pcl::PointXYZ> (ss.str (), *transformed_cloud, false); //*
+      printf ("t = < %0.3f, %0.3f, %0.3f >\n", translation (0), translation (1), translation (2));
+      std::cout<<"find a plate "<<std::endl;
+      j++;
 
-        std::stringstream ss;
-        ss << "model_aligned_" << j << ".pcd";
-        writer.write<pcl::PointXYZ> (ss.str (), *transformed_cloud, false); //*
-        printf ("t = < %0.3f, %0.3f, %0.3f >\n", translation (0), translation (1), translation (2));
-        std::cout<<"find a plate "<<std::endl;
-        j++;
-
-
-        std::cout << "--------------------" << std::endl;
-        std::cout << fit_score << std::endl;
-        std::cout << icp_score << std::endl;        
-      }
-      else
-      {
-        std::cout<<"find a invalid target"<<std::endl;
-      }
+      std::cout << "--------------------" << std::endl;
+      std::cout << fit_score << std::endl;
+//        std::cout << icp_score << std::endl;
+    }
+    else
+    {
+      try_times += 1;
+      std::cout<<"find a invalid target"<<std::endl;
     }
   }
   std::cout<< j << " plates have been found"<<std::endl;
